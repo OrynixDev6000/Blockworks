@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BLOCKWORKS - Orynix Studios</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; touch-action: none; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        
+        /* --- TITLE SCREEN UI --- */
+        #title-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.8)), url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTvXBKA84b1-M7G8jOx-iqV6Jp0fX_v7ND2ozRA2M3hoWUMQ-lKikySw6Q&s=10');
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: white;
+        }
+        #title-screen h1 { font-size: 3.5rem; margin-bottom: 20px; text-shadow: 4px 4px #000; letter-spacing: 5px; }
+        .menu-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            width: 280px;
+            backdrop-filter: blur(5px);
+        }
+        .menu-btn {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: #4CAF50;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 5px #2e6b31;
+        }
+        .menu-btn:active { transform: translateY(2px); box-shadow: 0 2px #2e6b31; }
+        .option-row { margin: 15px 0; display: flex; justify-content: space-between; align-items: center; }
+        input[type=range] { width: 100px; }
+
+        /* --- GAME UI --- */
+        #ui-wrapper { position: absolute; bottom: 85px; width: 100%; display: none; justify-content: space-between; padding: 0 30px; box-sizing: border-box; pointer-events: none; }
+        .action-group { display: flex; flex-direction: column; gap: 15px; pointer-events: auto; }
+        .icon-btn {
+            width: 70px; height: 70px;
+            background: rgba(0,0,0,0.5);
+            border: 3px solid #fff; border-radius: 12px;
+            background-size: cover; background-position: center;
+            box-shadow: 0 4px #ccc;
+            image-rendering: pixelated;
+        }
+        .icon-btn:active { transform: translateY(2px); box-shadow: 0 2px #ccc; }
+
+        #btn-pause {
+            position: absolute; top: 20px; right: 20px;
+            width: 50px; height: 50px;
+            background: rgba(0,0,0,0.5); border: 2px solid white; border-radius: 10px;
+            color: white; font-size: 24px; display: none; cursor: pointer; z-index: 50;
+        }
+
+        #btn-place { background-image: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZ_NpODCxNQLNr8lM_E9-RjUp6g2sICnQpTc9ZEzX77g&s'); }
+        #btn-destroy { background-image: url('https://ccvaults.com/assets/60.%20Interface/50.%20Outlines/Empty_Slot_Pickaxe.png'); }
+        #btn-jump { background-image: url('https://ccvaults.com/assets/60.%20Interface/1.$%20Effects/Jump_Boost.png'); }
+
+        #hotbar { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: none; gap: 5px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px; pointer-events: auto; }
+        .slot { width: 50px; height: 50px; border: 2px solid #555; background-size: cover; cursor: pointer; image-rendering: pixelated; }
+        .slot.active { border-color: #fff; background-color: rgba(255,255,255,0.2); }
+
+        #joystick { width: 120px; height: 120px; background: rgba(255,255,255,0.1); border: 2px solid #fff; border-radius: 50%; position: relative; pointer-events: auto; }
+        #stick { width: 50px; height: 50px; background: #fff; border-radius: 50%; position: absolute; top: 35px; left: 35px; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; border: 2px solid white; transform: translate(-50%, -50%); pointer-events: none; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="title-screen">
+        <h1>Blockworks</h1>
+        <div class="menu-box">
+            <button class="menu-btn" id="btn-play">PLAY GAME</button>
+            <div class="option-row">
+                <span>FOG TOGGLE:</span>
+                <button id="toggle-fog" style="padding:5px 10px;">ON</button>
+            </div>
+            <div class="option-row">
+                <span>FOV:</span>
+                <input type="range" id="fov-slider" min="50" max="110" value="75">
+                <span id="fov-val">75</span>
+            </div>
+        </div>
+    </div>
+
+    <button id="btn-pause">| |</button>
+
+    <div id="crosshair"></div>
+    <div id="ui-wrapper">
+        <div id="joystick"><div id="stick"></div></div>
+        <div class="action-group">
+            <div id="btn-place" class="icon-btn"></div>
+            <div id="btn-destroy" class="icon-btn"></div>
+            <div id="btn-jump" class="icon-btn"></div>
+        </div>
+    </div>
+    <div id="hotbar">
+        <div class="slot active" data-type="grass" style="background-image: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZ_NpODCxNQLNr8lM_E9-RjUp6g2sICnQpTc9ZEzX77g&s')"></div>
+        <div class="slot" data-type="stone" style="background-image: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTcKRFvD3CeGetI90K9wE0vI2ZXLRROsBOtNiAytZD88g&s=10')"></div>
+        <div class="slot" data-type="wood" style="background-image: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTd2rZBvYooHQ21jgv9fYJ163MNkYr-brHZnAdpBnuQtIEtYu6gEcstFAo&s=10')"></div>
+        <div class="slot" data-type="leaves" style="background-image: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJcJc-8vE6zWZC8Y-rRBbfcxoXAsdbVBpvdw9xRBjECw&s=10')"></div>
+    </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+    // --- SETTINGS & STATE ---
+    let gameActive = false;
+    let fogEnabled = true;
+
+    // --- SCENE SETUP ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 40, 100);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+    camera.rotation.order = "YXZ";
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const loader = new THREE.TextureLoader();
+    const blocks = [];
+    const blockMap = new Map();
+    const generatedChunks = new Set();
+    const CHUNK_SIZE = 8;
+    let selectedType = 'grass';
+
+    // Skybox
+    const skyTex = loader.load('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTvXBKA84b1-M7G8jOx-iqV6Jp0fX_v7ND2ozRA2M3hoWUMQ-lKikySw6Q&s=10');
+    const skyGeo = new THREE.SphereGeometry(1000, 32, 32);
+    const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide });
+    const skybox = new THREE.Mesh(skyGeo, skyMat);
+    scene.add(skybox);
+
+    function createMat(url) {
+        const tex = loader.load(url);
+        tex.magFilter = THREE.NearestFilter;
+        return new THREE.MeshLambertMaterial({ map: tex });
+    }
+
+    const mats = {
+        grass:  createMat('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZ_NpODCxNQLNr8lM_E9-RjUp6g2sICnQpTc9ZEzX77g&s'),
+        stone:  createMat('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTcKRFvD3CeGetI90K9wE0vI2ZXLRROsBOtNiAytZD88g&s=10'),
+        wood:   createMat('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTd2rZBvYooHQ21jgv9fYJ163MNkYr-brHZnAdpBnuQtIEtYu6gEcstFAo&s=10'),
+        leaves: createMat('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJcJc-8vE6zWZC8Y-rRBbfcxoXAsdbVBpvdw9xRBjECw&s=10'),
+        dirt:   createMat('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZ_NpODCxNQLNr8lM_E9-RjUp6g2sICnQpTc9ZEzX77g&s')
+    };
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)),
+        new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 })
+    );
+    outline.visible = false;
+    scene.add(outline);
+
+    // ---- PLAYER PHYSICS DATA (UPDATED) ----
+    const PLAYER_HEIGHT = 1.8;
+    const EYE_HEIGHT    = 1.6; // Positioned at head level
+    const PLAYER_WIDTH  = 0.6;
+    let playerFeet = new THREE.Vector3(4, 10, 4);
+    let velY = 0;
+    let onGround = false;
+
+    // ---- WORLD GENERATION ----
+    function blockKey(x, y, z) { return `${x},${y},${z}`; }
+
+    function addBlock(x, y, z, type) {
+        x = Math.round(x); y = Math.round(y); z = Math.round(z);
+        const key = blockKey(x, y, z);
+        if (blockMap.has(key)) return;
+        const b = new THREE.Mesh(geometry, mats[type]);
+        b.position.set(x, y, z);
+        b.hitbox = new THREE.Box3().setFromObject(b);
+        scene.add(b);
+        blocks.push(b);
+        blockMap.set(key, b);
+    }
+
+    function removeBlock(b) {
+        blockMap.delete(blockKey(b.position.x, b.position.y, b.position.z));
+        scene.remove(b);
+        blocks.splice(blocks.indexOf(b), 1);
+    }
+
+    function spawnTree(x, y, z) {
+        for (let i = 0; i < 3; i++) addBlock(x, y+i, z, 'wood');
+        for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) addBlock(x+ox, y+3, z+oz, 'leaves');
+        addBlock(x, y+4, z, 'leaves');
+    }
+
+    function generateChunk(cx, cz) {
+        const key = `${cx},${cz}`;
+        if (generatedChunks.has(key)) return;
+        generatedChunks.add(key);
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+            for (let z = 0; z < CHUNK_SIZE; z++) {
+                const wx = cx * CHUNK_SIZE + x;
+                const wz = cz * CHUNK_SIZE + z;
+                const h = Math.floor(Math.sin(wx * 0.15) * Math.cos(wz * 0.15) * 4);
+                for (let y = h - 2; y < h; y++) addBlock(wx, y, wz, (y > 1 ? 'stone' : 'dirt'));
+                addBlock(wx, h, wz, (h > 1 ? 'stone' : 'grass'));
+                if (Math.random() > 0.98 && h <= 1) spawnTree(wx, h+1, wz);
+            }
+        }
+    }
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) generateChunk(i, j);
+
+    // ---- UI ELEMENTS ----
+    const titleScreen = document.getElementById('title-screen');
+    const uiWrapper = document.getElementById('ui-wrapper');
+    const hotbar = document.getElementById('hotbar');
+    const crosshair = document.getElementById('crosshair');
+    const pauseBtn = document.getElementById('btn-pause');
+
+    // ---- MENU ACTIONS ----
+    document.getElementById('btn-play').onclick = () => {
+        gameActive = true;
+        titleScreen.style.display = 'none';
+        uiWrapper.style.display = 'flex';
+        hotbar.style.display = 'flex';
+        crosshair.style.display = 'flex';
+        pauseBtn.style.display = 'block';
+    };
+
+    pauseBtn.onclick = () => {
+        gameActive = false;
+        titleScreen.style.display = 'flex';
+        uiWrapper.style.display = 'none';
+        hotbar.style.display = 'none';
+        crosshair.style.display = 'none';
+        pauseBtn.style.display = 'none';
+    };
+
+    document.getElementById('toggle-fog').onclick = (e) => {
+        fogEnabled = !fogEnabled;
+        scene.fog = fogEnabled ? new THREE.Fog(0x87CEEB, 40, 100) : null;
+        e.target.innerText = fogEnabled ? "ON" : "OFF";
+    };
+
+    const fovSlider = document.getElementById('fov-slider');
+    const fovValText = document.getElementById('fov-val');
+    fovSlider.oninput = (e) => {
+        const val = e.target.value;
+        fovValText.innerText = val;
+        camera.fov = parseInt(val);
+        camera.updateProjectionMatrix();
+    };
+
+    // ---- COLLISION ----
+    function playerBox(pos) {
+        const hw = PLAYER_WIDTH / 2;
+        return new THREE.Box3(
+            new THREE.Vector3(pos.x - hw, pos.y,                 pos.z - hw),
+            new THREE.Vector3(pos.x + hw, pos.y + PLAYER_HEIGHT, pos.z + hw)
+        );
+    }
+
+    function getNearby(pos) {
+        const result = [];
+        for (let dx = -2; dx <= 2; dx++)
+        for (let dy = -2; dy <= 3; dy++)
+        for (let dz = -2; dz <= 2; dz++) {
+            const key = blockKey(Math.round(pos.x) + dx, Math.round(pos.y) + dy, Math.round(pos.z) + dz);
+            if (blockMap.has(key)) result.push(blockMap.get(key));
+        }
+        return result;
+    }
+
+    function collides(pos, nearby) {
+        const pb = playerBox(pos);
+        for (const b of nearby) if (pb.intersectsBox(b.hitbox)) return true;
+        return false;
+    }
+
+    // ---- TOUCH LOOK CONTROLS ----
+    let lastX = null, lastY = null;
+    window.addEventListener('touchstart', e => {
+        if (!gameActive) return;
+        if (e.target.classList.contains('icon-btn') || e.target.classList.contains('slot') || e.target.id === "btn-pause") return;
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+    });
+
+    window.addEventListener('touchmove', e => {
+        if (!gameActive) return;
+        if (e.touches[0].clientX > window.innerWidth / 2) {
+            if (lastX === null || lastY === null) return;
+            const dx = e.touches[0].clientX - lastX;
+            const dy = e.touches[0].clientY - lastY;
+            camera.rotation.y -= dx * 0.007;
+            camera.rotation.x -= dy * 0.007;
+            camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+        }
+    });
+    window.addEventListener('touchend', () => { lastX = null; lastY = null; });
+
+    // ---- HOTBAR SELECTION ----
+    document.querySelectorAll('.slot').forEach(slot => {
+        slot.onclick = () => {
+            document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+            slot.classList.add('active');
+            selectedType = slot.dataset.type;
+        };
+    });
+
+    // ---- JOYSTICK ----
+    let moveX = 0, moveZ = 0;
+    const joystick = document.getElementById('joystick'), stick = document.getElementById('stick');
+    joystick.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const t = e.touches[0], r = joystick.getBoundingClientRect();
+        const dx = t.clientX - (r.left + 60), dy = t.clientY - (r.top + 60);
+        const d = Math.min(Math.sqrt(dx*dx + dy*dy), 40), a = Math.atan2(dy, dx);
+        stick.style.transform = `translate(${Math.cos(a)*d}px, ${Math.sin(a)*d}px)`;
+        moveX = Math.cos(a) * (d / 40);
+        moveZ = Math.sin(a) * (d / 40);
+    });
+    joystick.addEventListener('touchend', () => { stick.style.transform = 'translate(0,0)'; moveX = 0; moveZ = 0; });
+
+    // ---- JUMP / PLACE / DESTROY ----
+    document.getElementById('btn-jump').addEventListener('touchstart', e => {
+        if (onGround && gameActive) { velY = 0.25; onGround = false; }
+    });
+
+    const ray = new THREE.Raycaster();
+    function getHit(dist) {
+        ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const hits = ray.intersectObjects(blocks);
+        return (hits.length > 0 && hits[0].distance < dist) ? hits[0] : null;
+    }
+
+    document.getElementById('btn-place').addEventListener('touchstart', e => {
+        if (!gameActive) return;
+        const hit = getHit(8);
+        if (hit) {
+            const p = hit.object.position.clone().add(hit.face.normal);
+            addBlock(p.x, p.y, p.z, selectedType);
+        }
+    });
+
+    document.getElementById('btn-destroy').addEventListener('touchstart', e => {
+        if (!gameActive) return;
+        const hit = getHit(8);
+        if (hit) removeBlock(hit.object);
+    });
+
+    // ---- GAME LOOP ----
+    function animate() {
+        requestAnimationFrame(animate);
+
+        if (gameActive) {
+            skybox.position.copy(camera.position);
+
+            const cx = Math.floor(playerFeet.x / CHUNK_SIZE);
+            const cz = Math.floor(playerFeet.z / CHUNK_SIZE);
+            for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) generateChunk(cx+i, cz+j);
+
+            const nearby = getNearby(playerFeet);
+
+            const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); fwd.y = 0; fwd.normalize();
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
+            const vx = (right.x * moveX + fwd.x * -moveZ) * 0.12;
+            const vz = (right.z * moveX + fwd.z * -moveZ) * 0.12;
+
+            playerFeet.x += vx;
+            if (collides(playerFeet, nearby)) playerFeet.x -= vx;
+            playerFeet.z += vz;
+            if (collides(playerFeet, nearby)) playerFeet.z -= vz;
+
+            velY -= 0.015;
+            playerFeet.y += velY;
+            if (collides(playerFeet, nearby)) {
+                playerFeet.y -= velY;
+                onGround = velY < 0;
+                velY = 0;
+            } else {
+                onGround = false;
+            }
+
+            if (playerFeet.y < -50) { playerFeet.set(4, 10, 4); velY = 0; }
+            
+            // CAMERA UPDATE: POSITION AT EYES
+            camera.position.set(playerFeet.x, playerFeet.y + EYE_HEIGHT, playerFeet.z);
+
+            const h = getHit(8);
+            if (h) { outline.visible = true; outline.position.copy(h.object.position); }
+            else outline.visible = false;
+        }
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
