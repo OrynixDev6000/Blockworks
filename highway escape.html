@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Highway Surfer - Complete Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            color: white;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            border: 4px solid #444;
+            width: 100%;
+            max-width: 400px;
+            height: 600px;
+            background: #222;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            pointer-events: none;
+            z-index: 10;
+            font-weight: bold;
+            font-size: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            display: none;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 20;
+        }
+
+        h1 { margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #3498db; }
+
+        button {
+            padding: 15px 40px;
+            font-size: 20px;
+            cursor: pointer;
+            background: linear-gradient(to bottom, #3498db, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+            transition: transform 0.2s;
+        }
+        button:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="lobby" class="overlay">
+            <h1>HIGHWAY SURFER</h1>
+            <p>Swipe to avoid the trucks!</p>
+            <button onclick="startGame()">START GAME</button>
+        </div>
+
+        <div id="ui">
+            SCORE: <span id="score">0</span>
+        </div>
+
+        <div id="game-over" class="overlay" style="display: none;">
+            <h1 style="color: #ff416c;">BUSTED!</h1>
+            <p>Final Score: <span id="final-score" style="font-weight: bold;">0</span></p>
+            <button onclick="resetGame()" style="background: linear-gradient(to bottom, #ff4b2b, #ff416c);">TRY AGAIN</button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+    const uiElement = document.getElementById('ui');
+    const lobbyScreen = document.getElementById('lobby');
+    const gameOverScreen = document.getElementById('game-over');
+    const finalScoreElement = document.getElementById('final-score');
+
+    canvas.width = 400;
+    canvas.height = 600;
+    const laneWidth = canvas.width / 3;
+    
+    let gameSpeed = 5;
+    let score = 0;
+    let isGameOver = false;
+    let gameRunning = false;
+
+    const carColors = ['#f1c40f', '#e74c3c', '#9b59b6', '#2ecc71', '#e67e22', '#ff00ff', '#00d2ff'];
+
+    const player = {
+        lane: 1, 
+        x: laneWidth + laneWidth / 2,
+        y: canvas.height - 100,
+        width: 44,
+        height: 75,
+        color: '#3498db' 
+    };
+
+    let trucks = [];
+    let roadsideLines = 0;
+
+    // --- INPUTS ---
+    window.addEventListener('keydown', (e) => {
+        if (!gameRunning || isGameOver) return;
+        if ((e.key === 'ArrowLeft' || e.key === 'a') && player.lane > 0) player.lane--;
+        if ((e.key === 'ArrowRight' || e.key === 'd') && player.lane < 2) player.lane++;
+    });
+
+    let touchStartX = 0;
+    canvas.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+    canvas.addEventListener('touchend', (e) => {
+        if (!gameRunning || isGameOver) return;
+        let touchEndX = e.changedTouches[0].screenX;
+        const threshold = 40;
+        if (touchEndX < touchStartX - threshold && player.lane > 0) player.lane--;
+        else if (touchEndX > touchStartX + threshold && player.lane < 2) player.lane++;
+    }, { passive: true });
+
+    // --- GAME STATES ---
+    function startGame() {
+        lobbyScreen.style.display = 'none';
+        uiElement.style.display = 'block';
+        gameRunning = true;
+        animate();
+        setInterval(spawnTruck, 1400);
+    }
+
+    function resetGame() {
+        score = 0;
+        gameSpeed = 5;
+        trucks = [];
+        player.lane = 1;
+        isGameOver = false;
+        scoreElement.innerText = score;
+        gameOverScreen.style.display = 'none';
+        animate();
+    }
+
+    function endGame() {
+        isGameOver = true;
+        gameRunning = false;
+        gameOverScreen.style.display = 'flex';
+        finalScoreElement.innerText = score;
+    }
+
+    // --- ENGINE ---
+    function spawnTruck() {
+        if (!gameRunning || isGameOver) return;
+        const lane = Math.floor(Math.random() * 3);
+        const randomColor = carColors[Math.floor(Math.random() * carColors.length)];
+        trucks.push({
+            x: lane * laneWidth + (laneWidth / 2),
+            y: -120,
+            width: 55,
+            height: 110,
+            color: randomColor
+        });
+    }
+
+    function update() {
+        if (!gameRunning || isGameOver) return;
+
+        const targetX = player.lane * laneWidth + laneWidth / 2;
+        player.x += (targetX - player.x) * 0.25;
+
+        trucks.forEach((truck, index) => {
+            truck.y += gameSpeed;
+
+            if (Math.abs(player.x - truck.x) < (player.width/2 + truck.width/2) - 5 &&
+                Math.abs(player.y - truck.y) < (player.height/2 + truck.height/2) - 5) {
+                endGame();
+            }
+
+            if (truck.y > canvas.height + 100) {
+                trucks.splice(index, 1);
+                score += 10;
+                scoreElement.innerText = score;
+                gameSpeed += 0.04;
+            }
+        });
+
+        roadsideLines += gameSpeed;
+        if (roadsideLines > 40) roadsideLines = 0;
+    }
+
+    function draw() {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Lane Markers
+        ctx.strokeStyle = '#666';
+        ctx.setLineDash([30, 30]);
+        ctx.lineDashOffset = -roadsideLines;
+        ctx.lineWidth = 4;
+        for (let i = 1; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i * laneWidth, 0);
+            ctx.lineTo(i * laneWidth, canvas.height);
+            ctx.stroke();
+        }
+
+        // Traffic
+        trucks.forEach(truck => {
+            ctx.fillStyle = truck.color;
+            drawRoundedRect(ctx, truck.x - truck.width / 2, truck.y - truck.height / 2, truck.width, truck.height, 5);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(truck.x - truck.width/2 + 5, truck.y + truck.height/2 - 25, truck.width - 10, 15);
+        });
+
+        // Player
+        const pX = player.x - player.width / 2;
+        const pY = player.y - player.height / 2;
+        let grd = ctx.createLinearGradient(pX, pY, pX + player.width, pY + player.height);
+        grd.addColorStop(0, "#00d2ff");
+        grd.addColorStop(1, "#3a7bd5");
+        ctx.fillStyle = grd;
+        drawRoundedRect(ctx, pX, pY, player.width, player.height, 8);
+        ctx.fillStyle = '#111';
+        ctx.fillRect(player.x - 15, player.y - 10, 30, 25);
+
+        // Police Lights
+        let policeColor = (Math.floor(Date.now() / 150) % 2 === 0) ? '#ff0000' : '#0000ff';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = policeColor;
+        ctx.fillStyle = policeColor;
+        ctx.fillRect(0, canvas.height - 8, canvas.width, 8);
+        ctx.shadowBlur = 0;
+    }
+
+    function animate() {
+        if (!isGameOver) {
+            update();
+            draw();
+            requestAnimationFrame(animate);
+        }
+    }
+
+    function drawRoundedRect(ctx, x, y, width, height, radius) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    draw();
+</script>
+</body>
+</html>
