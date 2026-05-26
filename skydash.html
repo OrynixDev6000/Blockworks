@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sky Dash - Rocket Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050b1a;
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 0 4px #444, 0 0 30px rgba(0, 212, 255, 0.4);
+            background-color: #000;
+        }
+
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom, #020611 0%, #10182b 100%);
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .menu-card {
+            background: #ded895; /* Retro scoreboard background */
+            padding: 25px 30px;
+            text-align: center;
+            pointer-events: auto;
+            border: 4px solid #fff;
+            box-shadow: inset 0 0 0 4px #d68e49, 0 10px 0 #000; /* Chunky 8-bit borders */
+            color: #333;
+            width: 260px;
+        }
+
+        h1 { 
+            margin: 0 0 20px 0; 
+            color: #d64949; 
+            font-size: 24px;
+            text-shadow: 2px 2px 0 #fff;
+            line-height: 1.4;
+        }
+        
+        .score-text {
+            font-size: 14px;
+            margin: 15px 0;
+            color: #333;
+            text-align: right;
+        }
+
+        .score-text span {
+            color: #d64949;
+        }
+
+        button {
+            background: #d64949;
+            border: 4px solid #fff;
+            padding: 15px 20px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            color: #fff;
+            cursor: pointer;
+            margin-top: 15px;
+            box-shadow: 0 4px 0 #000;
+            text-transform: uppercase;
+        }
+
+        button:active { 
+            transform: translateY(4px); 
+            box-shadow: 0 0 0 #000;
+        }
+        
+        #score-display {
+            position: absolute;
+            top: 30px;
+            font-size: 32px;
+            color: #fff;
+            text-shadow: 4px 4px 0 #000;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #new-high-score {
+            color: #d64949;
+            font-size: 10px;
+            animation: blink 0.5s infinite alternate;
+            display: none;
+            margin-top: -10px;
+            margin-bottom: 10px;
+        }
+
+        @keyframes blink {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        .helper-text {
+            font-size: 9px;
+            color: #666;
+            margin-top: 25px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div id="score-display">0</div>
+        
+        <div id="ui-overlay">
+            <div id="start-menu" class="menu-card">
+                <h1>SKY<br>DASH</h1>
+                <button onclick="startGame()">START</button>
+                <p class="helper-text">TAP, CLICK OR<br>SPACE TO BOOST</p>
+            </div>
+            
+            <div id="game-over-menu" class="menu-card" style="display: none;">
+                <h1>GAME OVER</h1>
+                <p id="new-high-score">NEW HIGH SCORE!</p>
+                
+                <div style="background: rgba(255,255,255,0.5); padding: 10px; border: 2px solid #333; margin-bottom: 15px;">
+                    <div class="score-text">SCORE: <span id="final-score">0</span></div>
+                    <div class="score-text">BEST: <span id="best-score">0</span></div>
+                </div>
+
+                <button onclick="startGame()">OK</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score-display');
+    const startMenu = document.getElementById('start-menu');
+    const gameOverMenu = document.getElementById('game-over-menu');
+    const finalScoreText = document.getElementById('final-score');
+    const bestScoreText = document.getElementById('best-score');
+    const newHighScoreText = document.getElementById('new-high-score');
+
+    // Game Constants
+    const GRAVITY = 0.25;
+    const JETPACK_FORCE = -5;
+    const PIPE_SPEED = 2.8;
+    const PIPE_SPAWN_RATE = 1500; 
+    const GAP_SIZE = 170;
+
+    let rocket, pipes, score, gameActive, lastPipeTime, stars;
+    
+    // Load high score from local storage
+    let highScore = localStorage.getItem('skyDashHighScore') || 0;
+
+    // Initialize Starfield
+    function initStars() {
+        stars = Array.from({length: 50}, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() > 0.8 ? 3 : 2, // Slightly chunkier stars for retro feel
+            speed: Math.random() * 0.5 + 0.2
+        }));
+    }
+
+    class Rocket {
+        constructor() {
+            this.x = 60;
+            this.y = canvas.height / 2;
+            this.width = 32;
+            this.height = 20;
+            this.velocity = 0;
+        }
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+            let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, this.velocity * 0.06));
+            ctx.rotate(rotation);
+
+            // Retro Blocky Rocket Body
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-16, -8, 24, 16);
+            
+            // Cockpit window
+            ctx.fillStyle = '#00d4ff';
+            ctx.fillRect(-4, -4, 8, 8);
+
+            // Nose cone
+            ctx.fillStyle = '#d64949';
+            ctx.beginPath();
+            ctx.moveTo(8, -8); ctx.lineTo(16, 0); ctx.lineTo(8, 8);
+            ctx.fill();
+
+            // Thrust flame (blocky)
+            if (this.velocity < 0) {
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillRect(-24, -4, 8, 8);
+                ctx.fillStyle = '#ff3300';
+                ctx.fillRect(-30, -2, 6, 4);
+            }
+            ctx.restore();
+        }
+
+        update() {
+            this.velocity += GRAVITY;
+            this.y += this.velocity;
+            if (this.y + this.height > canvas.height || this.y < 0) endGame();
+        }
+
+        boost() { this.velocity = JETPACK_FORCE; }
+    }
+
+    class Pipe {
+        constructor() {
+            this.x = canvas.width;
+            this.width = 60; // Slightly narrower for classic feel
+            this.topHeight = Math.random() * (canvas.height - GAP_SIZE - 120) + 60;
+            this.passed = false;
+        }
+
+        draw() {
+            // Retro solid colors instead of gradients
+            ctx.fillStyle = '#55ad5f'; // Classic green tube color, tinted for space
+            ctx.strokeStyle = '#2d5c32';
+            ctx.lineWidth = 4;
+
+            // Top Debris
+            this.drawObstacle(this.x, 0, this.width, this.topHeight, true);
+            // Bottom Debris
+            const bottomY = this.topHeight + GAP_SIZE;
+            this.drawObstacle(this.x, bottomY, this.width, canvas.height - bottomY, false);
+        }
+
+        drawObstacle(x, y, w, h, isTop) {
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+
+            // Cap/Rim of the pipe
+            ctx.fillStyle = '#6add76';
+            if (isTop) {
+                ctx.fillRect(x - 4, y + h - 20, w + 8, 20);
+                ctx.strokeRect(x - 4, y + h - 20, w + 8, 20);
+            } else {
+                ctx.fillRect(x - 4, y, w + 8, 20);
+                ctx.strokeRect(x - 4, y, w + 8, 20);
+            }
+        }
+
+        update() { this.x -= PIPE_SPEED; }
+    }
+
+    function startGame() {
+        initStars();
+        rocket = new Rocket();
+        pipes = [];
+        score = 0;
+        gameActive = true;
+        lastPipeTime = Date.now();
+        
+        scoreElement.style.display = 'block';
+        scoreElement.innerText = '0';
+        
+        startMenu.style.display = 'none';
+        gameOverMenu.style.display = 'none';
+        
+        gameLoop();
+    }
+
+    function endGame() {
+        gameActive = false;
+        
+        // Hide large background score
+        scoreElement.style.display = 'none';
+        
+        // High Score Logic
+        let isNewHigh = false;
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('skyDashHighScore', highScore);
+            isNewHigh = true;
+        }
+
+        // Update UI Text
+        finalScoreText.innerText = score;
+        bestScoreText.innerText = highScore;
+        newHighScoreText.style.display = isNewHigh ? 'block' : 'none';
+        
+        gameOverMenu.style.display = 'block';
+    }
+
+    function gameLoop() {
+        if (!gameActive) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Moving Starfield
+        ctx.fillStyle = "white";
+        stars.forEach(s => {
+            // Blocky stars
+            ctx.fillRect(s.x, s.y, s.size, s.size);
+            s.x -= s.speed;
+            if (s.x < 0) s.x = canvas.width;
+        });
+
+        rocket.update();
+        rocket.draw();
+
+        if (Date.now() - lastPipeTime > PIPE_SPAWN_RATE) {
+            pipes.push(new Pipe());
+            lastPipeTime = Date.now();
+        }
+
+        for (let i = pipes.length - 1; i >= 0; i--) {
+            pipes[i].update();
+            pipes[i].draw();
+
+            // Collision check
+            if (rocket.x + rocket.width > pipes[i].x && rocket.x < pipes[i].x + pipes[i].width) {
+                if (rocket.y < pipes[i].topHeight || rocket.y + rocket.height > pipes[i].topHeight + GAP_SIZE) {
+                    endGame();
+                }
+            }
+
+            if (!pipes[i].passed && pipes[i].x + pipes[i].width < rocket.x) {
+                score++;
+                pipes[i].passed = true;
+                scoreElement.innerText = score;
+            }
+            if (pipes[i].x + pipes[i].width < 0) pipes.splice(i, 1);
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    window.addEventListener('keydown', (e) => { if (e.code === 'Space' && gameActive) rocket.boost(); });
+    canvas.addEventListener('mousedown', () => { if (gameActive) rocket.boost(); });
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameActive) rocket.boost(); }, {passive: false});
+
+</script>
+</body>
+</html>
